@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage | Reading List</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="bar">
+    <h1>Reading List</h1>
+    <nav>
+      <a href="index.html">Library</a>
+      <a href="manage.html" aria-current="page">Manage</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+  <h2>Manage books</h2>
+  <p>
+    <button type="button" class="btn secondary" id="seed-btn">Load Xanth series (49)</button>
+  </p>
+  <div id="status"></div>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Reading List</footer>
+<script src="js/api.js"></script>
+<script>
+  const contentEl = document.getElementById('content');
+  const statusEl = document.getElementById('status');
+  const COLS = ['Series', 'Title', 'Author', 'Status', 'Type', 'AcquireUrl', 'Order'];
+  const STATUS_OPTS = ['Not Started', 'Read Some', 'Finished'];
+  const TYPE_OPTS = ['', 'Kindle', 'Audible', 'Hard Copy'];
+
+  function showStatus(msg) {
+    if (!msg) { statusEl.style.display = 'none'; return; }
+    statusEl.textContent = msg;
+    statusEl.style.display = 'block';
+  }
+
+  function cell(col, value) {
+    const v = value ?? '';
+    if (col === 'Status') {
+      return `<select data-col="Status">` +
+        STATUS_OPTS.map(o => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('') +
+        `</select>`;
+    }
+    if (col === 'Type') {
+      return `<select data-col="Type">` +
+        TYPE_OPTS.map(o => `<option value="${o}" ${o === v ? 'selected' : ''}>${o || '—'}</option>`).join('') +
+        `</select>`;
+    }
+    if (col === 'Order') {
+      return `<input type="number" data-col="Order" value="${escapeHtml(value ?? 0)}">`;
+    }
+    if (col === 'AcquireUrl') {
+      return `<input type="url" data-col="AcquireUrl" value="${escapeHtml(v)}">`;
+    }
+    return `<input type="text" data-col="${col}" value="${escapeHtml(v)}">`;
+  }
+
+  function readRow(tr) {
+    const g = c => (tr.querySelector(`[data-col="${c}"]`) || {}).value || '';
+    return {
+      series: g('Series').trim(),
+      title: g('Title').trim(),
+      author: g('Author').trim(),
+      status: g('Status'),
+      type: g('Type'),
+      acquireUrl: g('AcquireUrl').trim(),
+      sortOrder: Number(g('Order')) || 0,
+    };
+  }
+
+  function render(books) {
+    const head = COLS.map(c => `<th>${c}</th>`).join('') + '<th>Actions</th>';
+    const body = books.map(b => `
+      <tr data-id="${b.Id}">
+        <td>${cell('Series', b.Series)}</td>
+        <td>${cell('Title', b.Title)}</td>
+        <td>${cell('Author', b.Author)}</td>
+        <td>${cell('Status', b.Status)}</td>
+        <td>${cell('Type', b.Type)}</td>
+        <td>${cell('AcquireUrl', b.AcquireUrl)}</td>
+        <td>${cell('Order', b.SortOrder)}</td>
+        <td>
+          <button class="btn" data-act="save">Save</button>
+          <button class="btn secondary" data-act="del">Delete</button>
+        </td>
+      </tr>`).join('');
+    const addRow = `
+      <tr id="add-row">
+        ${COLS.map(c => `<td>${cell(c, c === 'Status' ? 'Not Started' : (c === 'Order' ? 0 : ''))}</td>`).join('')}
+        <td><button class="btn" data-act="add">Add</button></td>
+      </tr>`;
+    contentEl.innerHTML = `
+      <div class="table-wrap">
+        <table class="grid">
+          <thead><tr>${head}</tr></thead>
+          <tbody>${body}${addRow}</tbody>
+        </table>
+      </div>`;
+    contentEl.querySelectorAll('button[data-act]').forEach(btn => {
+      btn.addEventListener('click', () => handleAction(btn));
+    });
+  }
+
+  async function handleAction(btn) {
+    const act = btn.dataset.act;
+    const tr = btn.closest('tr');
+    const data = readRow(tr);
+    showStatus('');
+
+    if (act === 'add') {
+      if (!data.title) { showStatus('Title is required.'); return; }
+      btn.disabled = true;
+      const res = await postAction('addBook', data).catch(() => ({ ok: false }));
+      if (res.ok) { load(); } else { showStatus('Could not add that book.'); btn.disabled = false; }
+      return;
+    }
+
+    const id = Number(tr.dataset.id);
+    if (act === 'save') {
+      if (!data.title) { showStatus('Title is required.'); return; }
+      btn.disabled = true;
+      const res = await postAction('updateBook', { id, ...data }).catch(() => ({ ok: false }));
+      showStatus(res.ok ? 'Saved.' : 'Could not save that book.');
+      btn.disabled = false;
+      return;
+    }
+
+    if (act === 'del') {
+      if (!confirm('Delete this book? This cannot be undone.')) return;
+      btn.disabled = true;
+      const res = await postAction('deleteBook', { id }).catch(() => ({ ok: false }));
+      if (res.ok) { load(); } else { showStatus('Could not delete that book.'); btn.disabled = false; }
+    }
+  }
+
+  async function load() {
+    try {
+      const res = await fetchData('books');
+      render((res && res.books) || []);
+    } catch (e) {
+      handleError(contentEl, e);
+    }
+  }
+
+  document.getElementById('seed-btn').addEventListener('click', async (ev) => {
+    ev.target.disabled = true;
+    try {
+      const res = await postAction('seedXanth');
+      showStatus(res.added ? `Added ${res.added} Xanth books.` : 'Xanth books were already loaded.');
+      await load();
+    } catch (e) {
+      showStatus('Could not load the Xanth list.');
+    }
+    ev.target.disabled = false;
+  });
+
+  (async () => {
+    await captureSso();
+    await load();
+  })();
+</script>
+</body>
+</html>

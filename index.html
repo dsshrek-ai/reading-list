@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reading List</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#main" class="btn secondary" style="position:absolute;left:-999px;top:0;">Skip to content</a>
+<header class="site-header">
+  <div class="bar">
+    <h1>Reading List</h1>
+    <nav>
+      <a href="index.html" aria-current="page">Library</a>
+      <a href="manage.html">Manage</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+  <div id="status"></div>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Reading List</footer>
+<script src="js/api.js"></script>
+<script>
+  const contentEl = document.getElementById('content');
+  const statusEl = document.getElementById('status');
+  let BOOKS = [];
+  const openKeys = new Set();
+
+  function showStatus(msg) {
+    if (!msg) { statusEl.style.display = 'none'; return; }
+    statusEl.textContent = msg;
+    statusEl.style.display = 'block';
+  }
+
+  const STATUS_OPTS = ['Not Started', 'Read Some', 'Finished'];
+
+  function groupKey(b) {
+    const a = (b.Author || '').trim() || 'Unknown author';
+    const s = (b.Series || '').trim();
+    return a + ' ||| ' + (s || '(No series)');
+  }
+
+  function buildGroups() {
+    const map = new Map();
+    BOOKS.forEach(b => {
+      const k = groupKey(b);
+      if (!map.has(k)) {
+        map.set(k, {
+          key: k,
+          author: (b.Author || '').trim() || 'Unknown author',
+          series: (b.Series || '').trim(),
+          books: [],
+        });
+      }
+      map.get(k).books.push(b);
+    });
+    const groups = [...map.values()];
+    groups.forEach(g => g.books.sort((x, y) =>
+      (x.SortOrder - y.SortOrder) || x.Title.localeCompare(y.Title)));
+    groups.sort((x, y) =>
+      x.author.localeCompare(y.author) ||
+      (x.series === '' ? 1 : 0) - (y.series === '' ? 1 : 0) ||
+      x.series.localeCompare(y.series));
+    return groups;
+  }
+
+  function groupEl(g) {
+    const roll = rollupStatus(g.books);
+    const finished = g.books.filter(b => b.Status === 'Finished').length;
+    const isOpen = openKeys.has(g.key);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'series-group';
+    wrap.dataset.open = isOpen ? 'true' : 'false';
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'series-head';
+    head.innerHTML =
+      '<span class="chev">&#9656;</span>' +
+      '<span class="titles">' +
+        '<span class="series-name">' + escapeHtml(g.series || '(No series)') + '</span> ' +
+        '<span class="author-name">' + escapeHtml(g.author) + '</span>' +
+      '</span>' +
+      '<span class="badge ' + statusClass(roll) + '">' + roll + '</span>' +
+      '<span class="frac">' + finished + '/' + g.books.length + ' read</span>';
+    head.addEventListener('click', () => {
+      const now = wrap.dataset.open === 'true';
+      wrap.dataset.open = now ? 'false' : 'true';
+      if (now) openKeys.delete(g.key); else openKeys.add(g.key);
+    });
+
+    const list = document.createElement('div');
+    list.className = 'series-books';
+    g.books.forEach(b => list.appendChild(bookRowEl(b)));
+
+    wrap.appendChild(head);
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function bookRowEl(b) {
+    const row = document.createElement('div');
+    row.className = 'book-row';
+
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = b.SortOrder ? ('#' + b.SortOrder) : '';
+
+    const bt = document.createElement('span');
+    bt.className = 'bt';
+    bt.innerHTML = escapeHtml(b.Title) + (b.Type ? ' <span class="ty">' + escapeHtml(b.Type) + '</span>' : '');
+
+    const sel = document.createElement('select');
+    STATUS_OPTS.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o; opt.textContent = o;
+      if (o === b.Status) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', async () => {
+      sel.disabled = true;
+      try {
+        const res = await postAction('setStatus', { id: b.Id, status: sel.value });
+        if (!res.ok) throw new Error('save failed');
+        b.Status = sel.value;
+        render();               // refresh rollups
+      } catch (e) {
+        showStatus("Couldn't save that change. Try again.");
+        sel.disabled = false;
+      }
+    });
+
+    row.appendChild(num);
+    row.appendChild(bt);
+    row.appendChild(sel);
+    if (b.AcquireUrl) {
+      const a = document.createElement('a');
+      a.className = 'acq';
+      a.href = b.AcquireUrl;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Acquire ↗';
+      row.appendChild(a);
+    }
+    return row;
+  }
+
+  function render() {
+    showStatus('');
+    if (!BOOKS.length) {
+      contentEl.innerHTML = `
+        <div class="card">
+          <p>Your reading list is empty.</p>
+          <p><button type="button" class="btn" id="seed-btn">Load the Xanth reading list (49 books)</button></p>
+          <p class="note">Or add books yourself on the <a href="manage.html">Manage</a> screen.</p>
+        </div>`;
+      document.getElementById('seed-btn').addEventListener('click', seed);
+      return;
+    }
+    const groups = buildGroups();
+    contentEl.innerHTML = '';
+    groups.forEach(g => contentEl.appendChild(groupEl(g)));
+  }
+
+  async function seed() {
+    const btn = document.getElementById('seed-btn');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await postAction('seedXanth');
+      if (!res.ok) throw new Error('seed failed');
+      await load();
+    } catch (e) {
+      showStatus("Couldn't load the Xanth list. Try again.");
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function load() {
+    try {
+      const res = await fetchData('books');
+      BOOKS = (res && res.books) || [];
+      render();
+    } catch (e) {
+      handleError(contentEl, e);
+    }
+  }
+
+  (async () => {
+    await captureSso();
+    await load();
+  })();
+</script>
+</body>
+</html>
