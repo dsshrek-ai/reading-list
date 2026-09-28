@@ -52,7 +52,7 @@
         `</select>`;
     }
     if (col === 'Order') {
-      return `<input type="number" data-col="Order" value="${escapeHtml(value ?? 0)}">`;
+      return `<input type="number" step="any" data-col="Order" value="${escapeHtml(value ?? 0)}">`;
     }
     if (col === 'AcquireUrl') {
       return `<input type="url" data-col="AcquireUrl" value="${escapeHtml(v)}">`;

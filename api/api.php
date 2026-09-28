@@ -152,7 +152,7 @@ function listBooks(int $userId): array {
       'Status' => (string)($r['status'] ?? ''),
       'Type' => (string)($r['book_type'] ?? ''),
       'AcquireUrl' => (string)($r['acquire_url'] ?? ''),
-      'SortOrder' => (int)$r['sort_order'],
+      'SortOrder' => (float)$r['sort_order'],
     ];
   }
   $stmt->close();
@@ -166,7 +166,7 @@ function addBook(int $userId, array $b): int {
   $status = normStatus((string)($b['status'] ?? 'Not Started'));
   $type = normType((string)($b['type'] ?? ''));
   $url = trim((string)($b['acquireUrl'] ?? ''));
-  $order = (int)($b['sortOrder'] ?? 0);
+  $order = (float)($b['sortOrder'] ?? 0);
   if ($title === '') {
     fail('Title is required');
   }
@@ -177,7 +177,7 @@ function addBook(int $userId, array $b): int {
     'INSERT INTO reading_books (user_id, series, title, author, status, book_type, acquire_url, sort_order)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
-  $stmt->bind_param('issssssi', $userId, $seriesVal, $title, $authorVal, $status, $type, $urlVal, $order);
+  $stmt->bind_param('issssssd', $userId, $seriesVal, $title, $authorVal, $status, $type, $urlVal, $order);
   $stmt->execute();
   $id = $stmt->insert_id;
   $stmt->close();
@@ -191,7 +191,7 @@ function updateBook(int $userId, int $id, array $b): void {
   $status = normStatus((string)($b['status'] ?? 'Not Started'));
   $type = normType((string)($b['type'] ?? ''));
   $url = trim((string)($b['acquireUrl'] ?? ''));
-  $order = (int)($b['sortOrder'] ?? 0);
+  $order = (float)($b['sortOrder'] ?? 0);
   if ($title === '') {
     fail('Title is required');
   }
@@ -203,7 +203,7 @@ function updateBook(int $userId, int $id, array $b): void {
      SET series = ?, title = ?, author = ?, status = ?, book_type = ?, acquire_url = ?, sort_order = ?
      WHERE id = ? AND user_id = ?'
   );
-  $stmt->bind_param('ssssssiii', $seriesVal, $title, $authorVal, $status, $type, $urlVal, $order, $id, $userId);
+  $stmt->bind_param('ssssssdii', $seriesVal, $title, $authorVal, $status, $type, $urlVal, $order, $id, $userId);
   $stmt->execute();
   $stmt->close();
 }

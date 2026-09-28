@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 -- ---------- READING LIST ----------
 -- status:  Not Started | Read Some | Finished
 -- book_type: Kindle | Audible | Hard Copy
--- sort_order: reading order within a series (1, 2, 3 ...)
+-- sort_order: reading order within a series (1, 2, 3 ...; decimals like 14.5 for in-between novellas)
 
 CREATE TABLE IF NOT EXISTS reading_books (
   id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS reading_books (
   status       VARCHAR(20) NOT NULL DEFAULT 'Not Started',
   book_type    VARCHAR(20) NULL,
   acquire_url  VARCHAR(1000) NULL,
-  sort_order   INT NOT NULL DEFAULT 0,
+  sort_order   DECIMAL(7,2) NOT NULL DEFAULT 0,
   created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY ix_reading_books_user (user_id, series, sort_order),
@@ -59,3 +59,7 @@ CREATE TABLE IF NOT EXISTS reading_books (
 --    click "Load the Xanth reading list", or POST action=seedXanth. It only
 --    adds them if you have no Xanth books yet.
 -- ============================================================
+
+-- Migration (2026-09-28): allow fractional reading order, e.g. 14.5 between books 14 and 15.
+-- Run once on databases created before this change:
+-- ALTER TABLE reading_books MODIFY sort_order DECIMAL(7,2) NOT NULL DEFAULT 0;
