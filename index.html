@@ -37,68 +37,66 @@
 
   const STATUS_OPTS = ['Not Started', 'Read Some', 'Finished'];
 
-  function groupKey(b) {
-    const a = (b.Author || '').trim() || 'Unknown author';
-    const s = (b.Series || '').trim();
-    return a + ' ||| ' + (s || '(No series)');
-  }
+  // Library tree levels, outermost first. "Source" is the book's Type (Kindle / Audible / Hard Copy).
+  const LEVELS = [
+    { field: 'Author', empty: 'Unknown author' },
+    { field: 'Type',   empty: '(No source)' },
+    { field: 'Series', empty: '(No series)' },
+  ];
 
-  function buildGroups() {
+  // Split books into groups by one level's field; named groups A-Z, the empty group last.
+  function groupBy(books, level) {
     const map = new Map();
-    BOOKS.forEach(b => {
-      const k = groupKey(b);
-      if (!map.has(k)) {
-        map.set(k, {
-          key: k,
-          author: (b.Author || '').trim() || 'Unknown author',
-          series: (b.Series || '').trim(),
-          books: [],
-        });
-      }
-      map.get(k).books.push(b);
+    books.forEach(b => {
+      const v = (b[level.field] || '').trim();
+      if (!map.has(v)) map.set(v, []);
+      map.get(v).push(b);
     });
-    const groups = [...map.values()];
-    groups.forEach(g => g.books.sort((x, y) =>
-      (x.SortOrder - y.SortOrder) || x.Title.localeCompare(y.Title)));
-    groups.sort((x, y) =>
-      x.author.localeCompare(y.author) ||
-      (x.series === '' ? 1 : 0) - (y.series === '' ? 1 : 0) ||
-      x.series.localeCompare(y.series));
-    return groups;
+    return [...map.entries()]
+      .map(([value, list]) => ({ value, books: list }))
+      .sort((x, y) =>
+        (x.value === '' ? 1 : 0) - (y.value === '' ? 1 : 0) ||
+        x.value.localeCompare(y.value));
   }
 
-  function groupEl(g) {
+  function groupEl(g, depth, parentKey) {
+    const level = LEVELS[depth];
+    const key = parentKey + ' ||| ' + g.value;
     const roll = rollupStatus(g.books);
     const finished = g.books.filter(b => b.Status === 'Finished').length;
-    const isOpen = openKeys.has(g.key);
 
     const wrap = document.createElement('div');
-    wrap.className = 'series-group';
-    wrap.dataset.open = isOpen ? 'true' : 'false';
+    wrap.className = 'grp lvl-' + depth;
+    wrap.dataset.open = openKeys.has(key) ? 'true' : 'false';
 
     const head = document.createElement('button');
     head.type = 'button';
-    head.className = 'series-head';
+    head.className = 'grp-head';
     head.innerHTML =
       '<span class="chev">&#9656;</span>' +
-      '<span class="titles">' +
-        '<span class="series-name">' + escapeHtml(g.series || '(No series)') + '</span> ' +
-        '<span class="author-name">' + escapeHtml(g.author) + '</span>' +
-      '</span>' +
+      '<span class="grp-name">' + escapeHtml(g.value || level.empty) + '</span>' +
       '<span class="badge ' + statusClass(roll) + '">' + roll + '</span>' +
       '<span class="frac">' + finished + '/' + g.books.length + ' read</span>';
     head.addEventListener('click', () => {
       const now = wrap.dataset.open === 'true';
       wrap.dataset.open = now ? 'false' : 'true';
-      if (now) openKeys.delete(g.key); else openKeys.add(g.key);
+      if (now) openKeys.delete(key); else openKeys.add(key);
     });
 
-    const list = document.createElement('div');
-    list.className = 'series-books';
-    g.books.forEach(b => list.appendChild(bookRowEl(b)));
+    const body = document.createElement('div');
+    body.className = 'grp-body';
+    if (depth + 1 < LEVELS.length) {
+      groupBy(g.books, LEVELS[depth + 1]).forEach(child =>
+        body.appendChild(groupEl(child, depth + 1, key)));
+    } else {
+      g.books
+        .slice()
+        .sort((x, y) => (x.SortOrder - y.SortOrder) || x.Title.localeCompare(y.Title))
+        .forEach(b => body.appendChild(bookRowEl(b)));
+    }
 
     wrap.appendChild(head);
-    wrap.appendChild(list);
+    wrap.appendChild(body);
     return wrap;
   }
 
@@ -161,9 +159,8 @@
       document.getElementById('seed-btn').addEventListener('click', seed);
       return;
     }
-    const groups = buildGroups();
     contentEl.innerHTML = '';
-    groups.forEach(g => contentEl.appendChild(groupEl(g)));
+    groupBy(BOOKS, LEVELS[0]).forEach(g => contentEl.appendChild(groupEl(g, 0, '')));
   }
 
   async function seed() {

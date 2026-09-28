@@ -110,8 +110,9 @@ input[type="number"], select {
 .st-not-started { background: #e6eaef; color: var(--grey); }
 
 /* ---- library (index.html) ---- */
-.series-group { margin-bottom: 0.9rem; }
-.series-head {
+.grp { margin-bottom: 0.6rem; }
+.grp.lvl-0 { margin-bottom: 0.9rem; }
+.grp-head {
   width: 100%;
   display: flex;
   align-items: center;
@@ -125,16 +126,18 @@ input[type="number"], select {
   font: inherit;
   color: inherit;
 }
-.series-head:hover { border-color: var(--primary); }
-.series-head .chev { color: var(--muted); font-size: 0.85rem; transition: transform 0.15s; flex-shrink: 0; }
-.series-group[data-open="true"] .series-head .chev { transform: rotate(90deg); }
-.series-head .titles { flex: 1; min-width: 0; }
-.series-head .series-name { font-weight: bold; }
-.series-head .author-name { color: var(--muted); font-size: 0.9rem; }
-.series-head .frac { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+.grp-head:hover { border-color: var(--primary); }
+.grp-head .chev { color: var(--muted); font-size: 0.85rem; transition: transform 0.15s; flex-shrink: 0; }
+.grp[data-open="true"] > .grp-head .chev { transform: rotate(90deg); }
+.grp-head .grp-name { flex: 1; min-width: 0; font-weight: bold; }
+.grp-head .frac { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+.grp.lvl-0 > .grp-head .grp-name { color: var(--primary-dark); font-size: 1.05rem; }
+.grp.lvl-1 > .grp-head { background: var(--tint); padding: 0.6rem 0.9rem; font-size: 0.95rem; }
+.grp.lvl-2 > .grp-head { padding: 0.55rem 0.9rem; font-size: 0.95rem; }
 
-.series-books { display: none; padding: 0.4rem 0 0.2rem 0.5rem; }
-.series-group[data-open="true"] .series-books { display: block; }
+.grp-body { display: none; padding: 0.5rem 0 0.1rem 1rem; }
+.grp[data-open="true"] > .grp-body { display: block; }
+.grp.lvl-2 > .grp-body { padding-left: 0.5rem; }
 .book-row {
   display: flex;
   flex-wrap: wrap;
@@ -190,4 +193,5 @@ footer.site-footer {
 
 @media (max-width: 480px) {
   html { font-size: 16px; }
+  .grp-body { padding-left: 0.5rem; }
 }
